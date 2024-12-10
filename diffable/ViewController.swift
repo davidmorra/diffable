@@ -49,11 +49,7 @@ var datasource: Datasource = .init(
 )
 
 class ViewController: UIViewController {
-//    enum _Section: Hashable {
-//        case main(Int)
-//    }
-    
-    enum _Section: Hashable {
+    enum Section: Hashable {
         case group(Group)
         case single
     }
@@ -63,7 +59,7 @@ class ViewController: UIViewController {
         case single(Single)
     }
     
-    var dataSource: UICollectionViewDiffableDataSource<_Section, Item>!
+    var dataSource: UICollectionViewDiffableDataSource<Section, Item>!
     
     private var collectionView: UICollectionView = {
         let layout = UICollectionViewFlowLayout()
@@ -85,11 +81,6 @@ class ViewController: UIViewController {
             SectionBackgroundDecorationView.self,
             forSupplementaryViewOfKind: "section-background2",
             withReuseIdentifier: "SectionBackgroundDecorationView"
-        )
-        collectionView.register(
-            HorizontalAlignedView.self,
-            forSupplementaryViewOfKind: "section-header",
-            withReuseIdentifier: HorizontalAlignedView.reuseIdentifier
         )
         collectionView.backgroundColor = .systemGray3
         
@@ -116,7 +107,7 @@ class ViewController: UIViewController {
     }
     
     func setupDataSource() {
-        dataSource = UICollectionViewDiffableDataSource<_Section, Item>(collectionView: collectionView) { collectionView, indexPath, item in
+        dataSource = UICollectionViewDiffableDataSource<Section, Item>(collectionView: collectionView) { collectionView, indexPath, item in
             let cell = collectionView.dequeueReusableCell(withReuseIdentifier: HorizontalAlignedCell.reuseIdentifier, for: indexPath) as! HorizontalAlignedCell
             
             switch item {
@@ -127,26 +118,8 @@ class ViewController: UIViewController {
             case .group(let group):
 //                print("Section", indexPath.section, "Item", indexPath.item)
                 cell.configure(with: group.title, image: .strokedCheckmark) {
-//                    datasource.sections[indexPath.section].isexpanded.toggle()
-//                    self.updateSnapshot(with: datasource)
-                    
-                    var snap = self.dataSource.snapshot(for: .group(group))
-                    
-                    if snap.isExpanded(.group(group)) {
-                        snap.collapse([.group(group)])
-                        datasource.sections[indexPath.section].isexpanded = false
-                    } else {
-                        snap.expand([.group(group)])
-                        datasource.sections[indexPath.section].isexpanded = true
-                    }
-                    self.dataSource.apply(snap, to: .group(group))
-//                    if snapsho.items.isEmpty {
-//                        snapsho.append(group.items.map(Item.single))
-//                        self.dataSource.apply(snapsho, to: .group(group))
-//                    } else {
-//                        snapsho.deleteAll()
-//                        self.dataSource.apply(snapsho, to: .group(group))
-//                    }
+                    datasource.sections[indexPath.section].isexpanded.toggle()
+                    self.updateSnapshot(with: datasource)
                 }
             }
 
@@ -154,21 +127,6 @@ class ViewController: UIViewController {
         }
         
         dataSource.supplementaryViewProvider = { collectionView, elementKind, indexPath in
-            if elementKind == "section-header" {
-                let view = collectionView.dequeueReusableSupplementaryView(
-                    ofKind: elementKind,
-                    withReuseIdentifier: HorizontalAlignedView.reuseIdentifier,
-                    for: indexPath
-                ) as? HorizontalAlignedView
-                view?.configure(with: "Yle", image: .add) {
-                    datasource.sections[indexPath.section].isexpanded.toggle()
-                    self.updateSnapshot(with: datasource)
-
-                }
-                return view
-
-            }
-            
             if elementKind == "group-background" {
                 let view = collectionView.dequeueReusableSupplementaryView(
                     ofKind: elementKind,
@@ -203,53 +161,31 @@ class ViewController: UIViewController {
     }
     
     func updateSnapshot(with items: Datasource) {
-        var snapshot = NSDiffableDataSourceSnapshot<_Section, Item>()
+        var snapshot = NSDiffableDataSourceSnapshot<Section, Item>()
         
-        var sectionSnapshot = NSDiffableDataSourceSectionSnapshot<Item>()
+        snapshot.appendSections(items.sections.map(Section.group))
+        snapshot.appendSections([.single])
         
-        
-        snapshot.appendSections(items.sections.map(_Section.group))
-        dataSource.apply(snapshot)
-        
-        items.sections.enumerated().forEach { index, group in
+        items.sections.forEach { group in
             let groupRow = Item.group(group)
             let rows = group.items.map(Item.single)
 
-            sectionSnapshot.append([groupRow])
-            sectionSnapshot.append(rows, to: groupRow)
-            dataSource.apply(sectionSnapshot, to: .group(group), animatingDifferences: true)
+            if group.isexpanded {
+                snapshot.appendItems([groupRow] + rows, toSection: .group(group))
+            } else {
+                snapshot.appendItems([groupRow], toSection: .group(group))
+            }
         }
         
-//
-//        snapshot.appendSections(items.sections.map(Section.group))
-//        snapshot.appendSections([.single])
-//        
-//        items.sections.forEach { group in
-//            let groupRow = Item.group(group)
-//            let rows = group.items.map(Item.single)
-//
-//            if group.isexpanded {
-//                snapshot.appendItems([groupRow] + rows, toSection: .group(group))
-//            }
-//            else {
-//                snapshot.appendItems([groupRow], toSection: .group(group))
-//            }
-//        }
-//        
-//        snapshot.appendItems(items.items.map(Item.single), toSection: .single)
-//        snapshot.appendSections([.main])
-//        dataSource.apply(snapshot)
-
-        /// Apply
-//        dataSource.apply(sectionSnapshot, to: .main, animatingDifferences: true)
+        snapshot.appendItems(items.items.map(Item.single), toSection: .single)
+        
+        
+        dataSource.apply(snapshot)
     }
     
-//    func update(_ section: Section, items: [Item]) {
-////        var snapshot = dataSource.snapshot(for: section)
-////        snapshot.append(items)
-////        snapshot.
-////        dataSource.apply(snapshot)
-//    }
+    func update() {
+        
+    }
 }
 
 extension ViewController {
@@ -268,65 +204,37 @@ extension ViewController {
                 widthDimension: .fractionalWidth(1.0),
                 heightDimension: .estimated(80)
             )
-            let group = NSCollectionLayoutGroup.vertical(
+            let group = NSCollectionLayoutGroup.horizontal(
                 layoutSize: groupSize,
                 subitems: [item]
             )
-//            group.supplementaryItems
+
             // Section background
             let sectionBackgroundDecoration = NSCollectionLayoutDecorationItem
                 .background(elementKind: "section-background")
             let sectionBackgroundDecoration2 = NSCollectionLayoutDecorationItem
                 .background(elementKind: "section-background2")
 
-            // Group supplementary item
-//            let groupBackgroundSupplementary = NSCollectionLayoutSupplementaryItem(
-//                layoutSize: NSCollectionLayoutSize(
-//                    widthDimension: .fractionalWidth(1.0),
-//                    heightDimension: .estimated(60)
-//                ),
-//                elementKind: "group-background",
-//                containerAnchor: NSCollectionLayoutAnchor(edges: [.top, .bottom, .leading, .trailing])
-//            )
-//            group.supplementaryItems = [groupBackgroundSupplementary]
-
             // Section
             let section = NSCollectionLayoutSection(group: group)
             
 
-//            section.decorationItems = [sectionBackgroundDecoration2]
+            section.decorationItems = [sectionBackgroundDecoration2]
         
 //            print(datasource.sections[sectionIndex].id)
 //            let section = datasource.sections[sectionIndex]
-//            let sect = dataSource.sectionIdentifier(for: sectionIndex)
             
-            
-            if datasource.sections[sectionIndex].isexpanded {
-                section.decorationItems = [sectionBackgroundDecoration2, sectionBackgroundDecoration]
-            } else {
-                section.decorationItems = [sectionBackgroundDecoration2]
+            let sec = self.dataSource.snapshot().sectionIdentifiers[sectionIndex]
+            switch sec {
+            case .group:
+                if datasource.sections[sectionIndex].isexpanded {
+                    section.decorationItems = [sectionBackgroundDecoration2, sectionBackgroundDecoration]
+                }
+
+            case .single:
+                ()
             }
             
-//            let sec = self.dataSource.snapshot().sectionIdentifiers[sectionIndex]
-//            switch sec {
-//            case .group:
-//                if datasource.sections[sectionIndex].isexpanded {
-//                }
-//
-//                // Header
-//                let headerSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1.0),
-//                                                        heightDimension: .absolute(60)) // Adjust height as needed
-//                let header = NSCollectionLayoutBoundarySupplementaryItem(
-//                    layoutSize: headerSize,
-//                    elementKind: "section-header",
-//                    alignment: .top
-//                )
-////                section.boundarySupplementaryItems = [header]
-//
-//            case .single:
-//                ()
-//            }
-
             return section
         }
         .addingDecorationViews()
